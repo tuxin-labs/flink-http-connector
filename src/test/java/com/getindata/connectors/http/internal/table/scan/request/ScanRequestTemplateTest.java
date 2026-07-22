@@ -62,4 +62,40 @@ class ScanRequestTemplateTest {
         assertThat(req.method()).isEqualTo("GET");
         assertThat(req.bodyPublisher()).isEmpty();
     }
+
+    @Test
+    void shouldAppendQueryWithAmpersandWhenUrlAlreadyHasQuery() throws Exception {
+        var conf = new Configuration();
+        conf.set(HttpScanConnectorOptions.URL, "https://x/items?fixed=1");
+        conf.set(HttpScanConnectorOptions.QUERY_PARAMS, "page=${page}");
+        var cfg = HttpScanConfig.from(conf, new Properties());
+
+        var req = new ScanRequestTemplate(cfg).build(Map.of("page", "2"));
+        assertThat(req.uri()).isEqualTo(new URI("https://x/items?fixed=1&page=2"));
+    }
+
+    @Test
+    void shouldSkipEmptyQueryPairs() throws Exception {
+        var conf = new Configuration();
+        conf.set(HttpScanConnectorOptions.URL, "https://x");
+        conf.set(HttpScanConnectorOptions.QUERY_PARAMS, "page=${page}&&size=10");
+        var cfg = HttpScanConfig.from(conf, new Properties());
+
+        var req = new ScanRequestTemplate(cfg).build(Map.of("page", "1"));
+        // 中间空 pair 被跳过
+        assertThat(req.uri().getQuery()).isEqualTo("page=1&size=10");
+    }
+
+    @Test
+    void shouldBuildPostWithoutBody() {
+        var conf = new Configuration();
+        conf.set(HttpScanConnectorOptions.URL, "https://x");
+        conf.set(HttpScanConnectorOptions.METHOD, "POST");
+        var cfg = HttpScanConfig.from(conf, new Properties());
+
+        var req = new ScanRequestTemplate(cfg).build(Map.of());
+        assertThat(req.method()).isEqualTo("POST");
+        // POST 无 body 模板 -> 使用 noBody，bodyPublisher 非空但无内容
+        assertThat(req.bodyPublisher()).isPresent();
+    }
 }

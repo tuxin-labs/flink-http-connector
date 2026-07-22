@@ -179,4 +179,73 @@ class HttpScanTableSourceFactoryTest {
         assertThat(factory.optionalOptions()).contains(HttpScanConnectorOptions.PAGINATION_TYPE);
         assertThat(factory.optionalOptions()).contains(HttpScanConnectorOptions.CONTENT_FIELD);
     }
+
+    @Test
+    void shouldAcceptPostWithBody() {
+        var c = conf();
+        c.set(HttpScanConnectorOptions.METHOD, "POST");
+        c.set(HttpScanConnectorOptions.BODY, "{\"page\":${page}}");
+        c.set(HttpScanConnectorOptions.PAGINATION_TYPE, "page-number");
+        c.set(HttpScanConnectorOptions.PAGINATION_BATCH_SIZE, 10);
+        assertThatCode(() -> validate(c)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void shouldAcceptPutMethod() {
+        var c = conf();
+        c.set(HttpScanConnectorOptions.METHOD, "PUT");
+        assertThatCode(() -> validate(c)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void shouldAcceptUrlVarsMatching() {
+        var c = conf();
+        c.set(HttpScanConnectorOptions.URL, "https://x/{cid}/items");
+        c.set(HttpScanConnectorOptions.URL_VARS, "cid:C1");
+        assertThatCode(() -> validate(c)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void shouldAcceptValidContentFieldJsonPath() {
+        var c = conf();
+        c.set(HttpScanConnectorOptions.CONTENT_FIELD, "$.data.list");
+        assertThatCode(() -> validate(c)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void shouldRejectNoneWithCursorPlaceholder() {
+        var c = conf();
+        c.set(HttpScanConnectorOptions.QUERY_PARAMS, "cursor=${cursor}");
+        assertThatThrownBy(() -> validate(c))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("${cursor}");
+    }
+
+    @Test
+    void shouldWarnButNotFailWhenPageNumberHasNoStopStrategy() {
+        var c = conf();
+        c.set(HttpScanConnectorOptions.QUERY_PARAMS, "page=${page}");
+        c.set(HttpScanConnectorOptions.PAGINATION_TYPE, "page-number");
+        // 无任何停止策略，仅告警不抛错
+        assertThatCode(() -> validate(c)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void shouldRejectZeroTotalPages() {
+        var c = conf();
+        c.set(HttpScanConnectorOptions.QUERY_PARAMS, "page=${page}");
+        c.set(HttpScanConnectorOptions.PAGINATION_TYPE, "page-number");
+        c.set(HttpScanConnectorOptions.PAGINATION_TOTAL_PAGES, 0);
+        assertThatThrownBy(() -> validate(c))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("total-pages must be > 0");
+    }
+
+    @Test
+    void shouldHandleNullUrlInValidateUrlVars() {
+        // URL 未设置时 validateUrlVars 提前返回（防御分支）；其余校验仍走默认值
+        var c = new Configuration();
+        c.set(HttpScanConnectorOptions.PAGINATION_TYPE, "none");
+        assertThatCode(() -> validate(c)).doesNotThrowAnyException();
+    }
 }

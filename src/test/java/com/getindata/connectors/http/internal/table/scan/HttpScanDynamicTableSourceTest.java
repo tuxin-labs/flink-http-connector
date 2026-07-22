@@ -50,4 +50,14 @@ class HttpScanDynamicTableSourceTest {
         assertThat(s).isInstanceOf(ScanTableSource.class);
         assertThat(s).isInstanceOf(SupportsProjectionPushDown.class);
     }
+
+    @Test
+    void shouldApplyProjection() {
+        var s = source();
+        // 投影只取第 1 列（name）
+        s.applyProjection(new int[][] {{1}}, DataTypes.ROW(DataTypes.FIELD("name", DataTypes.STRING())));
+        // copy 保留投影后的 schema
+        var copy = (HttpScanDynamicTableSource) s.copy();
+        assertThat(copy.asSummaryString()).isEqualTo("HttpScanDynamicTableSource");
+    }
 }

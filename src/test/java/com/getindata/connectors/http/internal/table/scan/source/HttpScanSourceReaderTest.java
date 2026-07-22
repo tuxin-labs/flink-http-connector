@@ -142,4 +142,62 @@ class HttpScanSourceReaderTest {
         assertThat(s2).isEqualTo(InputStatus.END_OF_INPUT);
         assertThat(output.rows).hasSize(2);
     }
+
+    @Test
+    void shouldSkipIgnoredStatusCodeAndStop() throws Exception {
+        var conf = new Configuration();
+        conf.set(HttpScanConnectorOptions.URL, "https://x/items");
+        conf.set(HttpScanConnectorOptions.IGNORED_RESPONSE_CODES, "404");
+        var cfg = HttpScanConfig.from(conf, new Properties());
+
+        var httpClient = Mockito.mock(HttpClientWithRetry.class);
+        Mockito.doReturn(mockResponse(404, "not found"))
+            .when(httpClient).send(any(), any());
+
+        var reader = new HttpScanSourceReader(
+            httpClient, new ScanRequestTemplate(cfg), new NoPagination(), cfg, stubDeserializer(),
+            Mockito.mock(org.apache.flink.api.connector.source.SourceReaderContext.class));
+        var output = new CollectingOutput();
+
+        // ignored 404 -> 跳过内容，NoPagination 仍推进并停止
+        InputStatus status = reader.pollNext(output);
+        assertThat(status).isEqualTo(InputStatus.END_OF_INPUT);
+        assertThat(output.rows).isEmpty();
+    }
+
+    @Test
+    void shouldReturnEndOfInputWhenFinishedOnSecondPoll() throws Exception {
+        var conf = new Configuration();
+        conf.set(HttpScanConnectorOptions.URL, "https://x/items");
+        var cfg = HttpScanConfig.from(conf, new Properties());
+
+        var httpClient = Mockito.mock(HttpClientWithRetry.class);
+        Mockito.doReturn(mockResponse(200, "[{\"id\":1}]"))
+            .when(httpClient).send(any(), any());
+
+        var reader = new HttpScanSourceReader(
+            httpClient, new ScanRequestTemplate(cfg), new NoPagination(), cfg, stubDeserializer(),
+            Mockito.mock(org.apache.flink.api.connector.source.SourceReaderContext.class));
+        var output = new CollectingOutput();
+
+        // 第一次 poll 拉取并结束
+        assertThat(reader.pollNext(output)).isEqualTo(InputStatus.END_OF_INPUT);
+        // 第二次 poll 命中 finished 分支，直接返回 END_OF_INPUT
+        assertThat(reader.pollNext(output)).isEqualTo(InputStatus.END_OF_INPUT);
+    }
+
+    @Test
+    void shouldHandleAddSplitsEmptyAndNonEmpty() throws Exception {
+        var conf = new Configuration();
+        conf.set(HttpScanConnectorOptions.URL, "https://x/items");
+        var cfg = HttpScanConfig.from(conf, new Properties());
+        var httpClient = Mockito.mock(HttpClientWithRetry.class);
+
+        var reader = new HttpScanSourceReader(
+            httpClient, new ScanRequestTemplate(cfg), new NoPagination(), cfg, stubDeserializer(),
+            Mockito.mock(org.apache.flink.api.connector.source.SourceReaderContext.class));
+        // 空 list 与非空 list 均不抛异常
+        reader.addSplits(java.util.List.of());
+        reader.addSplits(java.util.List.of(new HttpScanSplit(cfg)));
+    }
 }

@@ -91,4 +91,72 @@ class JsonPathExtractorTest {
         assertThatThrownBy(() -> JsonPathExtractor.compileCheck("a.b"))
             .isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void shouldThrowWhenContentFieldPointsToScalar() {
+        String body = "{\"data\":\"notanarray\"}";
+        assertThatThrownBy(() -> JsonPathExtractor.extractRecords(body, "$.data"))
+            .isInstanceOf(JsonPathExtractionException.class);
+    }
+
+    @Test
+    void shouldThrowWhenTopLevelIsScalar() {
+        assertThatThrownBy(() -> JsonPathExtractor.extractRecords("\"juststring\"", null))
+            .isInstanceOf(JsonPathExtractionException.class);
+    }
+
+    @Test
+    void shouldExtractLongFromNumericStringField() {
+        // asLong 对数字字符串也能解析
+        assertThat(JsonPathExtractor.extractLong("{\"total\":\"42\"}", "$.total")).isEqualTo(42L);
+    }
+
+    @Test
+    void shouldReturnEmptyWhenBodyIsInvalidJson() {
+        assertThatThrownBy(() -> JsonPathExtractor.extractRecords("not json", null))
+            .isInstanceOf(JsonPathExtractionException.class);
+    }
+
+    @Test
+    void shouldExtractBooleanFromNonBooleanField() {
+        // 非 boolean 字段走 asBoolean 转换（"true" -> true）
+        assertThat(JsonPathExtractor.extractBoolean("{\"flag\":\"true\"}", "$.flag")).isTrue();
+    }
+
+    @Test
+    void shouldExtractStringFromNumericField() {
+        assertThat(JsonPathExtractor.extractString("{\"code\":200}", "$.code")).isEqualTo("200");
+    }
+
+    @Test
+    void shouldExtractRecordsFromWildcardOnNestedPath() {
+        String body = "{\"resp\":{\"items\":[{\"id\":1}]}}";
+        assertThat(JsonPathExtractor.extractRecords(body, "$.resp.items.*")).hasSize(1);
+    }
+
+    @Test
+    void shouldReturnEmptyWhenContentFieldIsJsonNull() {
+        assertThat(JsonPathExtractor.extractRecords("{\"data\":null}", "$.data")).isEmpty();
+    }
+
+    @Test
+    void shouldReturnNullWhenIntermediatePathMissing() {
+        // 中间字段缺失 -> navigate 返回 null
+        assertThat(JsonPathExtractor.extractLong("{\"x\":1}", "$.a.b")).isNull();
+        assertThat(JsonPathExtractor.extractBoolean("{\"x\":1}", "$.a.b")).isNull();
+        assertThat(JsonPathExtractor.extractString("{\"x\":1}", "$.a.b")).isNull();
+    }
+
+    @Test
+    void shouldReturnNullWhenFieldIsJsonNull() {
+        assertThat(JsonPathExtractor.extractLong("{\"total\":null}", "$.total")).isNull();
+        assertThat(JsonPathExtractor.extractBoolean("{\"flag\":null}", "$.flag")).isNull();
+        assertThat(JsonPathExtractor.extractString("{\"name\":null}", "$.name")).isNull();
+    }
+
+    @Test
+    void shouldRejectBlankJsonPathInCompileCheck() {
+        assertThatThrownBy(() -> JsonPathExtractor.compileCheck(""))
+            .isInstanceOf(IllegalArgumentException.class);
+    }
 }

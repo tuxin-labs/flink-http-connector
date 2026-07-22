@@ -372,6 +372,7 @@ under the License.
         <configuration>
           <excludes>
             <exclude>**/HttpLookupConnectorOptions.class</exclude>
+            <exclude>**/HttpScanConnectorOptions.class</exclude>
             <exclude>**/Slf4jHttpPostRequestCallback.class</exclude>
             <exclude>**/SelfSignedTrustManager.class</exclude>
             <exclude>org/apache/calcite**</exclude>

@@ -266,6 +266,48 @@ pagination methods. Currently, the connector supports only two simple approaches
 
 Please be informed that the mechanism will be enhanced in the future. See [HTTP-118](https://github.com/getindata/flink-http-connector/issues/118).
 
+### HTTP Scan Source
+The `http-scan` connector allows scanning an HTTP/REST API as a **bounded source** directly in Flink SQL — unlike `rest-lookup`, it does not require a driving table and supports pagination. It is built on Flink's FLIP-27 `Source` API (`Boundedness.BOUNDED`).
+
+```roomsql
+CREATE TABLE http_orders (
+  id BIGINT,
+  name STRING,
+  amount DECIMAL(18, 2)
+) WITH (
+  'connector' = 'http-scan',
+  'url'       = 'https://api.example.com/orders',
+  'format'    = 'json',
+  'gid.connector.http.scan.query-params' = 'page=${page}&size=100',
+  'gid.connector.http.scan.content-field' = '$.data.*',
+  'gid.connector.http.scan.pagination.type'       = 'page-number',
+  'gid.connector.http.scan.pagination.batch-size' = '100'
+);
+
+INSERT INTO my_sink SELECT * FROM http_orders;
+```
+
+#### Usage scenarios
+- **No pagination** (pull all data in one request): omit `pagination.*` options. Ensure the API returns a top-level array/object, or set `content-field` to a JSONPath that extracts the record array.
+- **Page-number pagination**: set `pagination.type = page-number` and use the `${page}` placeholder in `url`, `query-params`, or `body`. Stops when any of these conditions is met (in priority order): `pagination.total-pages` reached, `pagination.total-count-jsonpath` total satisfied, `pagination.has-more-jsonpath` is `false`, or a page returns fewer rows than `pagination.batch-size`.
+- **Cursor pagination**: set `pagination.type = cursor` and use the `${cursor}` placeholder. The next cursor is extracted from each response via `pagination.cursor-response-jsonpath`; pagination stops when the cursor is empty/null.
+
+#### Parameter passing
+Parameters can be passed via **URL query params** (`gid.connector.http.scan.query-params`, format `k1=v1&k2=v2`), **URL path variables** (`url` contains `{name}` resolved from `gid.connector.http.scan.url-vars`, format `key1:v1,key2:v2`), and **POST/PUT body templates** (`gid.connector.http.scan.body`, supports `${page}`/`${cursor}` placeholders).
+
+#### Content extraction
+`gid.connector.http.scan.content-field` is a JSONPath (e.g. `$.data.*`) that extracts the record array or object from the response before delegating single-record deserialization to Flink's `format` (e.g. `json`). If omitted, the response top level must itself be an array or object.
+
+#### Reused capabilities
+The connector reuses the project's existing infrastructure: TLS/mTLS, Basic/OIDC authentication, retry strategies (`fixed-delay`/`exponential-delay` via resilience4j), HTTP proxy, status-code classification (`success-codes`/`retry-codes`/`ignored-response-codes`), and HTTP request/response logging (`gid.connector.http.logging.level`). See the option table below.
+
+#### Limitations (v1)
+- **Single parallelism**: one Source task scans pages serially.
+- **No checkpoint restore**: a failed job restarts from the first page (no cursor/page resume).
+- **No `continue-on-error`**: unclassified HTTP errors fail the job.
+- **No metadata columns** (planned for a follow-up).
+- **Runtime compatibility**: Flink 1.17.x and 1.18.x (Java 11).
+
 ### HTTP Sink
 The following example shows the minimum Table API example to create a [HttpDynamicSink](src/main/java/com/getindata/connectors/http/internal/table/HttpDynamicSink.java) that writes JSON values to an HTTP endpoint using POST method, assuming Flink has JAR of [JSON serializer](https://nightlies.apache.org/flink/flink-docs-release-1.15/docs/connectors/table/formats/json/) installed:
 
@@ -797,6 +839,8 @@ Implementation of an HTTP Sink is based on Flink's `AsyncSinkBase` introduced in
 The mapping from Http Json Response to SQL table schema is done via Flink's Json Format [5].
 
 ## Breaking changes
+- Version 0.27
+  - Added new connector `http-scan` for bounded HTTP source in Flink SQL. **Not a breaking change**; existing `rest-lookup` and `http-sink` are untouched.
 - Version 0.10
   - Http Sink submission mode changed from single to batch. From now, body of HTTP POUT/POST request will contain a Json array.
   - Changed API for public HttpSink builder. The `setHttpPostRequestCallback` expects a `PostRequestCallback`
