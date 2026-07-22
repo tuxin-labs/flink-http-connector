@@ -29,6 +29,13 @@ class JsonPathExtractorTest {
     }
 
     @Test
+    void shouldExtractArrayWithWildcardSuffix() {
+        // $.data.* 语法（与 SeaTunnel 一致）：* 表示取该字段全部元素
+        String body = "{\"data\":[{\"id\":1},{\"id\":2}]}";
+        assertThat(JsonPathExtractor.extractRecords(body, "$.data.*")).hasSize(2);
+    }
+
+    @Test
     void shouldExtractNestedArray() {
         String body = "{\"resp\":{\"data\":{\"list\":[{\"id\":1}]}}}";
         assertThat(JsonPathExtractor.extractRecords(body, "$.resp.data.list")).hasSize(1);

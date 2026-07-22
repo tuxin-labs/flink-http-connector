@@ -12,9 +12,12 @@ import lombok.extern.slf4j.Slf4j;
 import org.apache.flink.api.common.serialization.DeserializationSchema;
 import org.apache.flink.api.connector.source.ReaderOutput;
 import org.apache.flink.api.connector.source.SourceReader;
+import org.apache.flink.api.connector.source.SourceReaderContext;
 import org.apache.flink.core.io.InputStatus;
+import org.apache.flink.metrics.MetricGroup;
 import org.apache.flink.table.data.RowData;
 import org.apache.flink.util.ConfigurationException;
+import org.apache.flink.util.UserCodeClassLoader;
 
 import com.getindata.connectors.http.internal.retry.HttpClientWithRetry;
 import com.getindata.connectors.http.internal.status.HttpCodesParser;
@@ -42,6 +45,7 @@ public class HttpScanSourceReader implements SourceReader<RowData, HttpScanSplit
     private final PaginationStrategy paginationStrategy;
     private final HttpScanConfig config;
     private final DeserializationSchema<RowData> deserializer;
+    private final SourceReaderContext readerContext;
     private final Set<Integer> ignoredCodes;
 
     private PaginationState state;
@@ -51,12 +55,14 @@ public class HttpScanSourceReader implements SourceReader<RowData, HttpScanSplit
                                 ScanRequestTemplate requestTemplate,
                                 PaginationStrategy paginationStrategy,
                                 HttpScanConfig config,
-                                DeserializationSchema<RowData> deserializer) throws ConfigurationException {
+                                DeserializationSchema<RowData> deserializer,
+                                SourceReaderContext readerContext) throws ConfigurationException {
         this.httpClient = httpClient;
         this.requestTemplate = requestTemplate;
         this.paginationStrategy = paginationStrategy;
         this.config = config;
         this.deserializer = deserializer;
+        this.readerContext = readerContext;
         String ignoredExpr = config.getReadableConfig()
             .get(HttpScanConnectorOptions.IGNORED_RESPONSE_CODES);
         this.ignoredCodes = (ignoredExpr == null || ignoredExpr.isBlank())
@@ -66,6 +72,22 @@ public class HttpScanSourceReader implements SourceReader<RowData, HttpScanSplit
     @Override
     public void start() {
         log.info("Starting http-scan SourceReader for url={}", config.getUrl());
+        // flink-json 的 DeserializationSchema 需在反序列化前 open，初始化 ObjectMapper
+        try {
+            deserializer.open(new DeserializationSchema.InitializationContext() {
+                @Override
+                public MetricGroup getMetricGroup() {
+                    return readerContext.metricGroup();
+                }
+
+                @Override
+                public UserCodeClassLoader getUserCodeClassLoader() {
+                    return readerContext.getUserCodeClassLoader();
+                }
+            });
+        } catch (Exception e) {
+            throw new RuntimeException("Failed to open deserializer for http-scan", e);
+        }
     }
 
     @Override

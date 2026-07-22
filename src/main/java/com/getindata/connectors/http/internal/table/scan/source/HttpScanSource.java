@@ -48,7 +48,8 @@ public class HttpScanSource implements Source<RowData, HttpScanSplit, Void> {
                 new ScanRequestTemplate(config),
                 strategyFor(config),
                 config,
-                deserializer);
+                deserializer,
+                readerContext);
         } catch (ConfigurationException e) {
             throw new RuntimeException("Failed to create http-scan SourceReader", e);
         }

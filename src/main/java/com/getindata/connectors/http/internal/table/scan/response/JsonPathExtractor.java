@@ -87,7 +87,8 @@ public final class JsonPathExtractor {
         }
         JsonNode current = root;
         for (String segment : path.split("\\.")) {
-            if (segment.isBlank()) {
+            if (segment.isBlank() || "*".equals(segment)) {
+                // "*" 通配（如 $.data.*）表示取该字段全部元素，跳过即可
                 continue;
             }
             if (current == null) {

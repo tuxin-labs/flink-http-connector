@@ -1,5 +1,6 @@
 package com.getindata.connectors.http.internal.table.scan;
 
+import java.io.Serializable;
 import java.util.Map;
 import java.util.Properties;
 
@@ -17,7 +18,7 @@ import com.getindata.connectors.http.internal.table.scan.request.PlaceholderReso
  */
 @Value
 @Builder
-public class HttpScanConfig {
+public class HttpScanConfig implements Serializable {
 
     String url;
     String method;

@@ -103,7 +103,8 @@ class HttpScanSourceReaderTest {
             .when(httpClient).send(any(), any());
 
         var reader = new HttpScanSourceReader(
-            httpClient, new ScanRequestTemplate(cfg), new NoPagination(), cfg, stubDeserializer());
+            httpClient, new ScanRequestTemplate(cfg), new NoPagination(), cfg, stubDeserializer(),
+            Mockito.mock(org.apache.flink.api.connector.source.SourceReaderContext.class));
         var output = new CollectingOutput();
 
         InputStatus status = reader.pollNext(output);
@@ -129,7 +130,8 @@ class HttpScanSourceReaderTest {
             .when(httpClient).send(any(), any());
 
         var reader = new HttpScanSourceReader(
-            httpClient, new ScanRequestTemplate(cfg), new PageNumberPagination(), cfg, stubDeserializer());
+            httpClient, new ScanRequestTemplate(cfg), new PageNumberPagination(), cfg, stubDeserializer(),
+            Mockito.mock(org.apache.flink.api.connector.source.SourceReaderContext.class));
         var output = new CollectingOutput();
 
         InputStatus s1 = reader.pollNext(output);
