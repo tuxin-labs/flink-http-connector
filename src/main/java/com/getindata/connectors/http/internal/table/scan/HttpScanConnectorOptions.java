@@ -164,6 +164,9 @@ public final class HttpScanConnectorOptions {
             .defaultValue(false)
             .withDescription("Basic Auth 原样透传 Authorization header。");
 
+    // ---- Header 前缀（非 ConfigOption，供 ScanRequestTemplate 读取 Properties 用） ----
+    public static final String HEADER_PREFIX = SCAN_PREFIX + "header.";
+
     private HttpScanConnectorOptions() {
     }
 }

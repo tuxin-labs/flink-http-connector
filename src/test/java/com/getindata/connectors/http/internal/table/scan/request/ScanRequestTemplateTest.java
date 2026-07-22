@@ -95,7 +95,51 @@ class ScanRequestTemplateTest {
 
         var req = new ScanRequestTemplate(cfg).build(Map.of());
         assertThat(req.method()).isEqualTo("POST");
-        // POST 无 body 模板 -> 使用 noBody，bodyPublisher 非空但无内容
         assertThat(req.bodyPublisher()).isPresent();
+    }
+
+    @Test
+    void shouldAddConfiguredHeaders() {
+        var conf = new Configuration();
+        conf.set(HttpScanConnectorOptions.URL, "https://x/items");
+        var props = new Properties();
+        props.setProperty("gid.connector.http.scan.header.X-Custom", "my-value");
+        props.setProperty("gid.connector.http.scan.header.Accept", "application/json");
+        var cfg = HttpScanConfig.from(conf, props);
+
+        var req = new ScanRequestTemplate(cfg).build(Map.of());
+        assertThat(req.headers().firstValue("X-Custom")).hasValue("my-value");
+        assertThat(req.headers().firstValue("Accept")).hasValue("application/json");
+    }
+
+    @Test
+    void shouldAutoEncodeBasicAuthByDefault() {
+        var conf = new Configuration();
+        conf.set(HttpScanConnectorOptions.URL, "https://x/items");
+        var props = new Properties();
+        // 原始值 "user:pass" 应自动编码为 "Basic dXNlcjpwYXNz"
+        props.setProperty("gid.connector.http.scan.header.Authorization", "user:pass");
+        var cfg = HttpScanConfig.from(conf, props);
+
+        var req = new ScanRequestTemplate(cfg).build(Map.of());
+        String authValue = req.headers().firstValue("Authorization").orElseThrow();
+        assertThat(authValue).startsWith("Basic ");
+        // 解码验证
+        String decoded = new String(java.util.Base64.getDecoder()
+            .decode(authValue.substring(6)), java.nio.charset.StandardCharsets.UTF_8);
+        assertThat(decoded).isEqualTo("user:pass");
+    }
+
+    @Test
+    void shouldPassThroughRawAuthHeaderWhenConfigured() {
+        var conf = new Configuration();
+        conf.set(HttpScanConnectorOptions.URL, "https://x/items");
+        conf.set(HttpScanConnectorOptions.USE_RAW_AUTH_HEADER, true);
+        var props = new Properties();
+        props.setProperty("gid.connector.http.scan.header.Authorization", "Bearer my-token");
+        var cfg = HttpScanConfig.from(conf, props);
+
+        var req = new ScanRequestTemplate(cfg).build(Map.of());
+        assertThat(req.headers().firstValue("Authorization")).hasValue("Bearer my-token");
     }
 }
