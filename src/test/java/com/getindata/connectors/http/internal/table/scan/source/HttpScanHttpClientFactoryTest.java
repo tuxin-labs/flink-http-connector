@@ -47,4 +47,18 @@ class HttpScanHttpClientFactoryTest {
 
         assertThat(HttpScanHttpClientFactory.create(cfg)).isNotNull();
     }
+
+    @Test
+    void shouldCreateClientWithHttpVersionAndProxyAuth() throws Exception {
+        var conf = new Configuration();
+        conf.set(HttpScanConnectorOptions.URL, "https://x/items");
+        conf.set(HttpScanConnectorOptions.HTTP_VERSION, "HTTP_1_1");
+        conf.set(HttpScanConnectorOptions.PROXY_HOST, "proxy.local");
+        conf.set(HttpScanConnectorOptions.PROXY_PORT, 8080);
+        conf.set(HttpScanConnectorOptions.PROXY_USERNAME, "user");
+        conf.set(HttpScanConnectorOptions.PROXY_PASSWORD, "pass");
+        var cfg = HttpScanConfig.from(conf, new Properties());
+
+        assertThat(HttpScanHttpClientFactory.create(cfg)).isNotNull();
+    }
 }

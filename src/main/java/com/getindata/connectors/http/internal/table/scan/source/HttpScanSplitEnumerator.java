@@ -32,10 +32,14 @@ public class HttpScanSplitEnumerator implements SplitEnumerator<HttpScanSplit, V
     public void handleSplitRequest(int subtaskId, String requesterHostname) {
         if (!assigned) {
             context.assignSplit(split, subtaskId);
-            context.signalNoMoreSplits(subtaskId);
             assigned = true;
             log.info("Assigned http-scan split to subtask {}", subtaskId);
+        } else {
+            log.info("http-scan split already assigned; subtask {} will finish without data "
+                + "(parallelism > 1 is not useful for http-scan).", subtaskId);
         }
+        // 所有 reader 都必须收到结束信号，否则多余子任务会一直等待
+        context.signalNoMoreSplits(subtaskId);
     }
 
     @Override

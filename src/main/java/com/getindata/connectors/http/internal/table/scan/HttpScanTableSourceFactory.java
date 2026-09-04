@@ -43,7 +43,8 @@ public class HttpScanTableSourceFactory implements DynamicTableSourceFactory {
 
     private static final Pattern PAGE_PLACEHOLDER = Pattern.compile("\\$\\{page}");
     private static final Pattern CURSOR_PLACEHOLDER = Pattern.compile("\\$\\{cursor}");
-    private static final Pattern PATH_VAR_PATTERN = Pattern.compile("\\{(\\w+)}");
+    // (?<!\$) 排除 ${page}/${cursor} 占位符，避免其被误认为路径变量
+    private static final Pattern PATH_VAR_PATTERN = Pattern.compile("(?<!\\$)\\{(\\w+)}");
 
     @Override
     public DynamicTableSource createDynamicTableSource(Context context) {
@@ -95,6 +96,7 @@ public class HttpScanTableSourceFactory implements DynamicTableSourceFactory {
             HttpScanConnectorOptions.PAGINATION_START_PAGE,
             HttpScanConnectorOptions.PAGINATION_BATCH_SIZE,
             HttpScanConnectorOptions.PAGINATION_TOTAL_PAGES,
+            HttpScanConnectorOptions.PAGINATION_MAX_REQUESTS,
             HttpScanConnectorOptions.PAGINATION_TOTAL_COUNT_JSONPATH,
             HttpScanConnectorOptions.PAGINATION_HAS_MORE_JSONPATH,
             HttpScanConnectorOptions.PAGINATION_CURSOR_FIELD,
@@ -208,9 +210,17 @@ public class HttpScanTableSourceFactory implements DynamicTableSourceFactory {
             "pagination.batch-size");
         validatePositiveIfPresent(options, HttpScanConnectorOptions.PAGINATION_TOTAL_PAGES,
             "pagination.total-pages");
+        if (options.get(HttpScanConnectorOptions.PAGINATION_MAX_REQUESTS) <= 0) {
+            throw new IllegalArgumentException("pagination.max-requests must be > 0.");
+        }
         int maxRetries = options.get(HttpScanConnectorOptions.MAX_RETRIES);
         if (maxRetries < 0) {
             throw new IllegalArgumentException("max-retries must be >= 0.");
+        }
+        String httpVersion = options.get(HttpScanConnectorOptions.HTTP_VERSION);
+        if (httpVersion != null && !"HTTP_1_1".equals(httpVersion) && !"HTTP_2".equals(httpVersion)) {
+            throw new IllegalArgumentException(
+                "Unsupported http-version: " + httpVersion + ". Supported: HTTP_1_1, HTTP_2.");
         }
 
         // 软校验 S1/S2
@@ -221,8 +231,10 @@ public class HttpScanTableSourceFactory implements DynamicTableSourceFactory {
                     && options.get(HttpScanConnectorOptions.PAGINATION_TOTAL_COUNT_JSONPATH) == null
                     && options.get(HttpScanConnectorOptions.PAGINATION_HAS_MORE_JSONPATH) == null;
             if (noStopStrategy && !"cursor".equals(paginationType)) {
-                log.warn("pagination.type={} but no stop strategy configured; "
-                    + "may loop indefinitely.", paginationType);
+                log.warn("pagination.type={} but no stop strategy configured; scanning is only "
+                    + "bounded by pagination.max-requests. Configure an explicit stop strategy "
+                    + "(batch-size/total-pages/total-count-jsonpath/has-more-jsonpath) for "
+                    + "predictable results.", paginationType);
             }
         }
         if (options.get(HttpScanConnectorOptions.CONTENT_FIELD) == null) {

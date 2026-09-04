@@ -6,27 +6,28 @@ import java.util.List;
 
 import com.fasterxml.jackson.databind.JsonNode;
 import com.fasterxml.jackson.databind.ObjectMapper;
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
 import lombok.extern.slf4j.Slf4j;
 
 /**
  * 基于 Jackson 的轻量 JSONPath 抽取器，避免引入 jayway/JsonPath 依赖。
  *
  * <p>支持语法：$（整体）、$.a、$.a.b.c（点分路径）。剥壳到数组时逐元素返回，剥壳到单对象返回单条。
- * 路径未命中或为 null 时返回空列表（不视为错误）。
+ * 路径未命中、为 null 或响应体为空时返回空列表（不视为错误）。
  */
 @Slf4j
-@NoArgsConstructor(access = AccessLevel.NONE)
 public final class JsonPathExtractor {
 
     private static final ObjectMapper MAPPER = new ObjectMapper();
+
+    private JsonPathExtractor() {
+    }
 
     public static List<byte[]> extractRecords(String body, String contentField) {
         JsonNode root = parse(body);
         JsonNode target = (contentField == null || contentField.isBlank() || "$".equals(contentField))
             ? root : navigate(root, contentField);
-        if (target == null || target.isNull()) {
+        // Jackson 2.15+ 对空字符串响应返回 MissingNode，与 null 一并视为空结果
+        if (target == null || target.isNull() || target.isMissingNode()) {
             return List.of();
         }
         List<byte[]> records = new ArrayList<>();
@@ -52,7 +53,19 @@ public final class JsonPathExtractor {
         if (node == null || node.isNull() || node.isMissingNode()) {
             return null;
         }
-        return node.asLong();
+        // 仅接受数值与可解析的文本节点；其他类型返回 null 走“未命中”路径，
+        // 避免非数值字段被 asLong() 宽松转 0 导致扫描在第一页后静默截断
+        if (node.isNumber()) {
+            return node.asLong();
+        }
+        if (node.isTextual()) {
+            try {
+                return Long.parseLong(node.asText().trim());
+            } catch (NumberFormatException e) {
+                return null;
+            }
+        }
+        return null;
     }
 
     public static Boolean extractBoolean(String body, String jsonPath) {

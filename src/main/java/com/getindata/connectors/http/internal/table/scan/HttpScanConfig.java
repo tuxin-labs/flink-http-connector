@@ -33,11 +33,14 @@ public class HttpScanConfig implements Serializable {
     int startPage;
     Integer batchSize;
     Integer totalPages;
+    Integer maxRequests;
     String totalCountJsonPath;
     String hasMoreJsonPath;
     String cursorField;
     String cursorResponseJsonPath;
     String initialCursor;
+
+    int requestTimeout;
 
     Properties properties;
     ReadableConfig readableConfig;
@@ -56,11 +59,13 @@ public class HttpScanConfig implements Serializable {
             .startPage(readable.get(HttpScanConnectorOptions.PAGINATION_START_PAGE))
             .batchSize(readable.getOptional(HttpScanConnectorOptions.PAGINATION_BATCH_SIZE).orElse(null))
             .totalPages(readable.getOptional(HttpScanConnectorOptions.PAGINATION_TOTAL_PAGES).orElse(null))
+            .maxRequests(readable.get(HttpScanConnectorOptions.PAGINATION_MAX_REQUESTS))
             .totalCountJsonPath(readable.get(HttpScanConnectorOptions.PAGINATION_TOTAL_COUNT_JSONPATH))
             .hasMoreJsonPath(readable.get(HttpScanConnectorOptions.PAGINATION_HAS_MORE_JSONPATH))
             .cursorField(readable.get(HttpScanConnectorOptions.PAGINATION_CURSOR_FIELD))
             .cursorResponseJsonPath(readable.get(HttpScanConnectorOptions.PAGINATION_CURSOR_RESPONSE_JSONPATH))
             .initialCursor(readable.get(HttpScanConnectorOptions.PAGINATION_INITIAL_CURSOR))
+            .requestTimeout(readable.get(HttpScanConnectorOptions.REQUEST_TIMEOUT))
             .properties(properties)
             .readableConfig(readable)
             .build();

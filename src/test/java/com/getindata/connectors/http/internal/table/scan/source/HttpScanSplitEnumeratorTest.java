@@ -79,4 +79,22 @@ class HttpScanSplitEnumeratorTest {
         verify(ctx, times(1)).assignSplit(any(), eq(0));
         verify(ctx, times(1)).signalNoMoreSplits(0);
     }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void shouldSignalNoMoreSplitsToSecondRequester() {
+        var ctx = (SplitEnumeratorContext<HttpScanSplit>) Mockito.mock(SplitEnumeratorContext.class);
+        var conf = new Configuration();
+        conf.set(HttpScanConnectorOptions.URL, "https://x");
+        var cfg = HttpScanConfig.from(conf, new Properties());
+
+        var enumerator = new HttpScanSplitEnumerator(ctx, cfg);
+        enumerator.start();
+        // 并行度 > 1：subtask 0 拿到 split，subtask 1 只收到结束信号（防止多余子任务挂住）
+        enumerator.handleSplitRequest(0, "host");
+        enumerator.handleSplitRequest(1, "host");
+        verify(ctx, times(1)).assignSplit(any(), eq(0));
+        verify(ctx, times(1)).signalNoMoreSplits(0);
+        verify(ctx, times(1)).signalNoMoreSplits(1);
+    }
 }

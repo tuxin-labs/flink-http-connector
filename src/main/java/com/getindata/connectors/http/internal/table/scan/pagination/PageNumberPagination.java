@@ -3,13 +3,16 @@ package com.getindata.connectors.http.internal.table.scan.pagination;
 import java.util.Map;
 import java.util.Optional;
 
+import lombok.extern.slf4j.Slf4j;
+
 import com.getindata.connectors.http.internal.table.scan.HttpScanConfig;
 import com.getindata.connectors.http.internal.table.scan.response.JsonPathExtractor;
 
 /**
  * 页码分页。停止策略优先级（任一命中即停）：
- * total-pages → total-count-jsonpath → has-more-jsonpath → batch-size。
+ * max-requests（安全阀）→ total-pages → total-count-jsonpath → has-more-jsonpath → batch-size。
  */
+@Slf4j
 public class PageNumberPagination implements PaginationStrategy {
 
     @Override
@@ -27,6 +30,13 @@ public class PageNumberPagination implements PaginationStrategy {
         PaginationState state, String responseBody, int rowsInPage, HttpScanConfig config) {
         PaginationState updated =
             state.incrementRequest().accumulate(rowsInPage);
+
+        // 优先级0: max-requests 安全阀（防止无停止条件或异常场景下的无限扫描）
+        if (updated.getRequestCount() >= config.getMaxRequests()) {
+            log.warn("http-scan reached pagination.max-requests={} and stopped; "
+                + "increase it if more data is expected.", config.getMaxRequests());
+            return StopDecision.stop(updated);
+        }
 
         // 优先级1: total-pages（已发请求达到总数即停）
         if (config.getTotalPages() != null && updated.getRequestCount() >= config.getTotalPages()) {

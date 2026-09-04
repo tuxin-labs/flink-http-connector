@@ -1,5 +1,6 @@
 package com.getindata.connectors.http.internal.table.scan.source;
 
+import java.net.http.HttpRequest;
 import java.net.http.HttpResponse;
 import java.nio.charset.StandardCharsets;
 import java.util.List;
@@ -30,9 +31,11 @@ import com.getindata.connectors.http.internal.table.scan.request.ScanRequestTemp
 import com.getindata.connectors.http.internal.table.scan.response.JsonPathExtractor;
 
 /**
- * http-scan 的 {@link SourceReader}，单并行度串行分页拉取。
+ * http-scan 的 {@link SourceReader}，单 split 串行分页拉取。
  *
- * <p>每次 {@link #pollNext} 执行一次分页请求：构造请求 -> 发送（含重试）-> 剥壳 ->
+ * <p>只有被分配到 split 的 reader 才执行扫描；并行度 &gt; 1 时多余的 reader
+ * 会收到 NoMoreSplits 并直接结束（不扫描、不重复产出数据）。
+ * 每次 {@link #pollNext} 执行一次分页请求：构造请求 -> 发送（含重试）-> 剥壳 ->
  * 逐条反序列化 -> collect -> 推进分页状态。分页结束返回 {@link InputStatus#END_OF_INPUT}。
  * ignored-response-codes 命中时跳过内容但仍推进分页；未分类错误码由
  * {@link HttpClientWithRetry} 抛异常导致作业失败。
@@ -48,8 +51,13 @@ public class HttpScanSourceReader implements SourceReader<RowData, HttpScanSplit
     private final SourceReaderContext readerContext;
     private final Set<Integer> ignoredCodes;
 
+    /** 完成（收到 split 或 NoMoreSplits）后驱动 operator 的等待与后续 pollNext 调用 */
+    private final CompletableFuture<Void> availability = new CompletableFuture<>();
+
     private PaginationState state;
     private boolean finished = false;
+    private boolean splitAssigned = false;
+    private boolean noMoreSplits = false;
 
     public HttpScanSourceReader(HttpClientWithRetry httpClient,
                                 ScanRequestTemplate requestTemplate,
@@ -95,6 +103,19 @@ public class HttpScanSourceReader implements SourceReader<RowData, HttpScanSplit
         if (finished) {
             return InputStatus.END_OF_INPUT;
         }
+        // Flink 1.18 的 emitNext 在启动时会无条件先调一次 pollNext（不等 isAvailable），
+        // 因此未拿到 split 时必须返回 MORE_AVAILABLE 等待，绝不能提前结束：
+        // - addSplits 到达后 availability 完成，pollNext 再次被调，正常扫描；
+        // - 收到 NoMoreSplits 且始终无 split（并行度 > 1 的多余子任务）时干净退出，避免数据重复。
+        if (!splitAssigned) {
+            if (noMoreSplits) {
+                log.info("http-scan reader finished without an assigned split; "
+                    + "another subtask owns the single split.");
+                finished = true;
+                return InputStatus.END_OF_INPUT;
+            }
+            return InputStatus.MORE_AVAILABLE;
+        }
         if (state == null) {
             state = paginationStrategy.initialState(config);
         }
@@ -105,7 +126,7 @@ public class HttpScanSourceReader implements SourceReader<RowData, HttpScanSplit
             return InputStatus.END_OF_INPUT;
         }
 
-        java.net.http.HttpRequest request = requestTemplate.build(reqValues.get());
+        HttpRequest request = requestTemplate.build(reqValues.get());
         HttpResponse<byte[]> response =
             httpClient.send(() -> request, HttpResponse.BodyHandlers.ofByteArray());
 
@@ -136,7 +157,8 @@ public class HttpScanSourceReader implements SourceReader<RowData, HttpScanSplit
 
     @Override
     public CompletableFuture<Void> isAvailable() {
-        return CompletableFuture.completedFuture(null);
+        // 未收到 split / NoMoreSplits 信号前不触发 pollNext，避免空转
+        return availability;
     }
 
     @Override
@@ -144,12 +166,17 @@ public class HttpScanSourceReader implements SourceReader<RowData, HttpScanSplit
         // reader 已在构造期持有 config，split 仅作为分配信号
         if (!splits.isEmpty()) {
             log.debug("Received {} split(s)", splits.size());
+            splitAssigned = true;
+            availability.complete(null);
         }
     }
 
     @Override
     public void notifyNoMoreSplits() {
-        // 无动作
+        // 放行等待中的 pollNext：若已拿到 split 则继续扫描；
+        // 若始终未拿到 split（并行度 > 1 的多余子任务）则在下一次 pollNext 干净结束
+        noMoreSplits = true;
+        availability.complete(null);
     }
 
     @Override

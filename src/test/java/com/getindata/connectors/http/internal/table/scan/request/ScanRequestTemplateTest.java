@@ -142,4 +142,38 @@ class ScanRequestTemplateTest {
         var req = new ScanRequestTemplate(cfg).build(Map.of());
         assertThat(req.headers().firstValue("Authorization")).hasValue("Bearer my-token");
     }
+
+    @Test
+    void shouldReplacePaginationPlaceholderInUrl() throws Exception {
+        var conf = new Configuration();
+        // ${page} 在 URL 中（与路径变量 {cid} 混用），不应被误认为路径变量
+        conf.set(HttpScanConnectorOptions.URL, "https://x/{cid}/orders/${page}");
+        conf.set(HttpScanConnectorOptions.URL_VARS, "cid:C1");
+        var cfg = HttpScanConfig.from(conf, new Properties());
+
+        var req = new ScanRequestTemplate(cfg).build(Map.of("page", "3"));
+        assertThat(req.uri()).isEqualTo(new URI("https://x/C1/orders/3"));
+    }
+
+    @Test
+    void shouldEncodeOpaqueCursorWithAmpersand() throws Exception {
+        var conf = new Configuration();
+        conf.set(HttpScanConnectorOptions.URL, "https://x");
+        conf.set(HttpScanConnectorOptions.QUERY_PARAMS, "cursor=${cursor}");
+        var cfg = HttpScanConfig.from(conf, new Properties());
+
+        // cursor token 含 & 时必须整体编码，不能被当作 pair 分隔符拆开
+        var req = new ScanRequestTemplate(cfg).build(Map.of("cursor", "a&b=c"));
+        assertThat(req.uri()).isEqualTo(new URI("https://x?cursor=a%26b%3Dc"));
+    }
+
+    @Test
+    void shouldApplyRequestTimeout() {
+        var conf = new Configuration();
+        conf.set(HttpScanConnectorOptions.URL, "https://x/items");
+        var cfg = HttpScanConfig.from(conf, new Properties());
+
+        var req = new ScanRequestTemplate(cfg).build(Map.of());
+        assertThat(req.timeout()).hasValue(java.time.Duration.ofSeconds(30));
+    }
 }

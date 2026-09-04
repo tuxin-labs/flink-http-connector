@@ -23,6 +23,21 @@ class CursorPaginationTest {
     }
 
     @Test
+    void shouldStopWhenMaxRequestsReachedEvenIfCursorNeverEmpty() {
+        var conf = new Configuration();
+        conf.set(HttpScanConnectorOptions.URL, "https://x");
+        conf.set(HttpScanConnectorOptions.PAGINATION_TYPE, "cursor");
+        conf.set(HttpScanConnectorOptions.PAGINATION_CURSOR_RESPONSE_JSONPATH, "$.next");
+        conf.set(HttpScanConnectorOptions.PAGINATION_MAX_REQUESTS, 1);
+        var c = HttpScanConfig.from(conf, new Properties());
+
+        // API 异常持续返回非空 cursor 时，安全阀保证有界源必然终止
+        var st = strategy.initialState(c);
+        var after = strategy.afterResponse(st, "{\"next\":\"page2\"}", 10, c);
+        assertThat(after.isShouldStop()).isTrue();
+    }
+
+    @Test
     void shouldContinueUntilCursorEmpty() {
         var c = cfg("", "$.next");
         var st = strategy.initialState(c);

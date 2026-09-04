@@ -159,4 +159,21 @@ class JsonPathExtractorTest {
         assertThatThrownBy(() -> JsonPathExtractor.compileCheck(""))
             .isInstanceOf(IllegalArgumentException.class);
     }
+
+    @Test
+    void shouldReturnEmptyWhenBodyIsEmpty() {
+        // Jackson 2.15+ 对空字符串返回 MissingNode，应视为空结果而非抛异常
+        assertThat(JsonPathExtractor.extractRecords("", null)).isEmpty();
+        assertThat(JsonPathExtractor.extractRecords("", "$.data")).isEmpty();
+    }
+
+    @Test
+    void shouldReturnNullForNonNumericTotalCount() {
+        // 非数值字段不得被 asLong() 宽松转 0，否则会导致扫描第一页后静默截断
+        assertThat(JsonPathExtractor.extractLong("{\"total\":\"abc\"}", "$.total")).isNull();
+        assertThat(JsonPathExtractor.extractLong("{\"total\":true}", "$.total")).isNull();
+        // 数值与可解析文本正常返回
+        assertThat(JsonPathExtractor.extractLong("{\"total\":120}", "$.total")).isEqualTo(120L);
+        assertThat(JsonPathExtractor.extractLong("{\"total\":\"120\"}", "$.total")).isEqualTo(120L);
+    }
 }

@@ -106,6 +106,7 @@ class HttpScanSourceReaderTest {
             httpClient, new ScanRequestTemplate(cfg), new NoPagination(), cfg, stubDeserializer(),
             Mockito.mock(org.apache.flink.api.connector.source.SourceReaderContext.class));
         var output = new CollectingOutput();
+        reader.addSplits(List.of(new HttpScanSplit(cfg)));
 
         InputStatus status = reader.pollNext(output);
         assertThat(status).isEqualTo(InputStatus.END_OF_INPUT);
@@ -133,6 +134,7 @@ class HttpScanSourceReaderTest {
             httpClient, new ScanRequestTemplate(cfg), new PageNumberPagination(), cfg, stubDeserializer(),
             Mockito.mock(org.apache.flink.api.connector.source.SourceReaderContext.class));
         var output = new CollectingOutput();
+        reader.addSplits(List.of(new HttpScanSplit(cfg)));
 
         InputStatus s1 = reader.pollNext(output);
         assertThat(s1).isEqualTo(InputStatus.MORE_AVAILABLE);
@@ -158,6 +160,7 @@ class HttpScanSourceReaderTest {
             httpClient, new ScanRequestTemplate(cfg), new NoPagination(), cfg, stubDeserializer(),
             Mockito.mock(org.apache.flink.api.connector.source.SourceReaderContext.class));
         var output = new CollectingOutput();
+        reader.addSplits(List.of(new HttpScanSplit(cfg)));
 
         // ignored 404 -> 跳过内容，NoPagination 仍推进并停止
         InputStatus status = reader.pollNext(output);
@@ -179,11 +182,52 @@ class HttpScanSourceReaderTest {
             httpClient, new ScanRequestTemplate(cfg), new NoPagination(), cfg, stubDeserializer(),
             Mockito.mock(org.apache.flink.api.connector.source.SourceReaderContext.class));
         var output = new CollectingOutput();
+        reader.addSplits(List.of(new HttpScanSplit(cfg)));
 
         // 第一次 poll 拉取并结束
         assertThat(reader.pollNext(output)).isEqualTo(InputStatus.END_OF_INPUT);
         // 第二次 poll 命中 finished 分支，直接返回 END_OF_INPUT
         assertThat(reader.pollNext(output)).isEqualTo(InputStatus.END_OF_INPUT);
+    }
+
+    @Test
+    void shouldWaitForSplitBeforeScanning() throws Exception {
+        var conf = new Configuration();
+        conf.set(HttpScanConnectorOptions.URL, "https://x/items");
+        var cfg = HttpScanConfig.from(conf, new Properties());
+
+        var httpClient = Mockito.mock(HttpClientWithRetry.class);
+
+        var reader = new HttpScanSourceReader(
+            httpClient, new ScanRequestTemplate(cfg), new NoPagination(), cfg, stubDeserializer(),
+            Mockito.mock(org.apache.flink.api.connector.source.SourceReaderContext.class));
+        var output = new CollectingOutput();
+
+        // 模拟 Flink 1.18 emitNext 启动时无条件先调一次 pollNext：未拿到 split 时
+        // 必须返回 MORE_AVAILABLE 等待，且不发起任何 HTTP 请求
+        assertThat(reader.pollNext(output)).isEqualTo(InputStatus.MORE_AVAILABLE);
+        assertThat(output.rows).isEmpty();
+        Mockito.verifyNoInteractions(httpClient);
+    }
+
+    @Test
+    void shouldEndWithoutDataWhenNoMoreSplitsAndNoSplit() throws Exception {
+        var conf = new Configuration();
+        conf.set(HttpScanConnectorOptions.URL, "https://x/items");
+        var cfg = HttpScanConfig.from(conf, new Properties());
+
+        var httpClient = Mockito.mock(HttpClientWithRetry.class);
+
+        var reader = new HttpScanSourceReader(
+            httpClient, new ScanRequestTemplate(cfg), new NoPagination(), cfg, stubDeserializer(),
+            Mockito.mock(org.apache.flink.api.connector.source.SourceReaderContext.class));
+        var output = new CollectingOutput();
+
+        // 并行度 > 1 时的多余子任务：从未拿到 split，收到 NoMoreSplits 后干净退出
+        reader.notifyNoMoreSplits();
+        assertThat(reader.pollNext(output)).isEqualTo(InputStatus.END_OF_INPUT);
+        assertThat(output.rows).isEmpty();
+        Mockito.verifyNoInteractions(httpClient);
     }
 
     @Test

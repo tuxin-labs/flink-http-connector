@@ -75,6 +75,11 @@ public final class HttpScanConnectorOptions {
         ConfigOptions.key(PAGINATION_PREFIX + "has-more-jsonpath").stringType().noDefaultValue()
             .withDescription("响应 has-more 字段 JSONPath；为 false/null 即停。");
 
+    public static final ConfigOption<Integer> PAGINATION_MAX_REQUESTS =
+        ConfigOptions.key(PAGINATION_PREFIX + "max-requests").intType().defaultValue(10_000)
+            .withDescription("分页请求硬上限安全阀，达到即停（最高优先级），防止游标永不为空等"
+                + "异常场景导致无限扫描。默认 10000。");
+
     public static final ConfigOption<String> PAGINATION_CURSOR_FIELD =
         ConfigOptions.key(PAGINATION_PREFIX + "cursor-field").stringType().defaultValue("cursor")
             .withDescription("cursor 模式下请求侧游标占位符名。");

@@ -5,9 +5,6 @@ import java.nio.charset.StandardCharsets;
 import java.util.LinkedHashMap;
 import java.util.Map;
 
-import lombok.AccessLevel;
-import lombok.NoArgsConstructor;
-
 /**
  * 占位符与 URL 编码工具：
  * <ul>
@@ -17,8 +14,10 @@ import lombok.NoArgsConstructor;
  *     <li>encodeQueryValue: URL 编码 query 值</li>
  * </ul>
  */
-@NoArgsConstructor(access = AccessLevel.NONE)
 public final class PlaceholderResolver {
+
+    private PlaceholderResolver() {
+    }
 
     public static Map<String, String> parseUrlVars(String raw) {
         Map<String, String> map = new LinkedHashMap<>();

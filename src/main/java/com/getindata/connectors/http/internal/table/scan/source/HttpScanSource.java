@@ -64,8 +64,9 @@ public class HttpScanSource implements Source<RowData, HttpScanSplit, Void> {
     @Override
     public SplitEnumerator<HttpScanSplit, Void> restoreEnumerator(
             SplitEnumeratorContext<HttpScanSplit> enumContext, Void checkpoint) {
-        throw new UnsupportedOperationException(
-            "http-scan does not support checkpoint restore in v1");
+        // v1 不做断点续传：恢复时重新从头扫描（与“失败的作业从第一页重新开始”语义一致），
+        // 否则开启 checkpoint 的作业在 failover 后会因无法恢复 enumerator 而永久重启失败
+        return new HttpScanSplitEnumerator(enumContext, config);
     }
 
     @Override

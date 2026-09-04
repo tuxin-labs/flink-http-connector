@@ -33,6 +33,20 @@ class PageNumberPaginationTest {
     }
 
     @Test
+    void shouldStopWhenMaxRequestsReached() {
+        var conf = new Configuration();
+        conf.set(HttpScanConnectorOptions.URL, "https://x");
+        conf.set(HttpScanConnectorOptions.PAGINATION_TYPE, "page-number");
+        conf.set(HttpScanConnectorOptions.PAGINATION_MAX_REQUESTS, 1);
+        var c = HttpScanConfig.from(conf, new Properties());
+
+        // 安全阀最高优先级：即使本页满 batch-size 也停
+        var st = strategy.initialState(c);
+        var after = strategy.afterResponse(st, "[]", 100, c);
+        assertThat(after.isShouldStop()).isTrue();
+    }
+
+    @Test
     void shouldIncrementPageNumber() {
         var c = cfg(null, null, null, null);
         var st = strategy.initialState(c);

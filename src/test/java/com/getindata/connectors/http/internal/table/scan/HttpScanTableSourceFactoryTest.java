@@ -248,4 +248,38 @@ class HttpScanTableSourceFactoryTest {
         c.set(HttpScanConnectorOptions.PAGINATION_TYPE, "none");
         assertThatCode(() -> validate(c)).doesNotThrowAnyException();
     }
+
+    @Test
+    void shouldAcceptPaginationPlaceholderInUrl() {
+        // ${page} 在 URL 中是合法用法，不得被路径变量校验误判
+        var c = conf();
+        c.set(HttpScanConnectorOptions.URL, "https://x/orders/${page}");
+        c.set(HttpScanConnectorOptions.PAGINATION_TYPE, "page-number");
+        assertThatCode(() -> validate(c)).doesNotThrowAnyException();
+    }
+
+    @Test
+    void shouldRejectZeroMaxRequests() {
+        var c = conf();
+        c.set(HttpScanConnectorOptions.PAGINATION_MAX_REQUESTS, 0);
+        assertThatThrownBy(() -> validate(c))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("pagination.max-requests must be > 0");
+    }
+
+    @Test
+    void shouldRejectInvalidHttpVersion() {
+        var c = conf();
+        c.set(HttpScanConnectorOptions.HTTP_VERSION, "HTTP_3");
+        assertThatThrownBy(() -> validate(c))
+            .isInstanceOf(IllegalArgumentException.class)
+            .hasMessageContaining("Unsupported http-version");
+    }
+
+    @Test
+    void shouldAcceptValidHttpVersion() {
+        var c = conf();
+        c.set(HttpScanConnectorOptions.HTTP_VERSION, "HTTP_1_1");
+        assertThatCode(() -> validate(c)).doesNotThrowAnyException();
+    }
 }

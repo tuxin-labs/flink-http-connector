@@ -40,4 +40,13 @@ class HttpScanSourceTest {
         assertThat(source.getSplitSerializer()).isNotNull();
         assertThat(source.getEnumeratorCheckpointSerializer()).isNotNull();
     }
+
+    @SuppressWarnings("unchecked")
+    @Test
+    void shouldRestoreEnumeratorForCheckpointFailover() {
+        var source = new HttpScanSource(cfg(), null);
+        var ctx = (SplitEnumeratorContext<HttpScanSplit>) Mockito.mock(SplitEnumeratorContext.class);
+        // v1 无断点续传：failover 恢复为重新创建 enumerator 从头扫描，而不是抛异常
+        assertThat(source.restoreEnumerator(ctx, null)).isNotNull();
+    }
 }
