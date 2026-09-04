@@ -1,8 +1,7 @@
 # http-scan Flink SQL 连接器设计文档
 
 - 日期：2026-07-21
-- 作者：`tuxin`（与 Claude 通过 superpowers:brainstorming 协作产出）
-- 状态：已通过分节评审，等待用户对完整 spec 复审
+- 状态：v1 已实现
 - 目标交付物：一个新的 Flink SQL 连接器 `http-scan`，与现有 `rest-lookup`、`http-sink` 并列共存于本项目 `com.getindata:flink-http-connector` 之内。
 
 ---

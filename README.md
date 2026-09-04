@@ -1,16 +1,50 @@
 # flink-http-connector
 
-[![Maven Central](https://img.shields.io/maven-central/v/com.getindata/flink-http-connector)](https://mvnrepository.com/artifact/com.getindata/flink-http-connector)
-[![javadoc](https://javadoc.io/badge2/com.getindata/flink-http-connector/javadoc.svg)](https://javadoc.io/doc/com.getindata/flink-http-connector) 
+[![Release](https://img.shields.io/github/v/release/tuxin-labs/flink-http-connector)](https://github.com/tuxin-labs/flink-http-connector/releases)
+[![Build](https://github.com/tuxin-labs/flink-http-connector/actions/workflows/build.yml/badge.svg)](https://github.com/tuxin-labs/flink-http-connector/actions/workflows/build.yml)
 
-The HTTP TableLookup connector that allows for pulling data from external system via HTTP GET method and HTTP Sink that allows for sending data to external system via HTTP requests.
+> **This repository is a fork of [getindata/flink-http-connector](https://github.com/getindata/flink-http-connector).**
+> All credit for the original `rest-lookup` Lookup Source and `http-sink` goes to [GetInData](https://github.com/getindata) and the upstream contributors.
+> This fork adds the **`http-scan`** connector — see [What this fork adds](#what-this-fork-adds).
 
-**Note**: The `main` branch may be in an *unstable or even broken state* during development.
-Please use [releases](https://github.com/getindata/flink-http-connector/releases) instead of the `main` branch in order to get a stable set of binaries.
+HTTP connectors for Apache Flink, usable directly from Flink SQL:
 
-The goal for HTTP TableLookup connector was to use it in Flink SQL statement as a standard table that can be later joined with other stream using pure SQL Flink.
+| Connector | SQL identifier | Type | Since |
+|-----------|----------------|------|-------|
+| **HTTP Scan Source** | `'connector' = 'http-scan'` | Bounded source: read an HTTP/REST API as a table, with pagination | **this fork (0.27.0)** |
+| HTTP Lookup Source | `'connector' = 'rest-lookup'` | Lookup source for dimension-table joins | upstream |
+| HTTP Sink | `'connector' = 'http-sink'` | Sink that POSTs/PUTs records to an HTTP endpoint | upstream |
 
-`HttpSink` supports both Streaming API (when using [HttpSink](src/main/java/com/getindata/connectors/http/internal/sink/HttpSink.java) built using [HttpSinkBuilder](src/main/java/com/getindata/connectors/http/internal/sink/HttpSinkBuilder.java)) and the Table API (using connector created in [HttpDynamicTableSinkFactory](src/main/java/com/getindata/connectors/http/internal/table/HttpDynamicTableSinkFactory.java)).
+## What this fork adds
+
+The upstream project only supports reading HTTP via **Lookup Join**, which requires a driving table and does not support pagination. The `http-scan` connector added in this fork lets you query an HTTP/REST API **directly**:
+
+```sql
+CREATE TABLE http_orders (
+  id BIGINT,
+  name STRING,
+  amount DECIMAL(18, 2)
+) WITH (
+  'connector' = 'http-scan',
+  'url'       = 'https://api.example.com/orders',
+  'format'    = 'json',
+  'gid.connector.http.scan.query-params' = 'page=${page}&size=100',
+  'gid.connector.http.scan.content-field' = '$.data.*',
+  'gid.connector.http.scan.pagination.type'       = 'page-number',
+  'gid.connector.http.scan.pagination.batch-size' = '100'
+);
+
+INSERT INTO my_sink SELECT * FROM http_orders;
+```
+
+Highlights:
+- **Bounded source** built on Flink's FLIP-27 `Source` API — run it as a batch job, no driving table needed.
+- **Pagination**: page-number and cursor modes, with multiple stop conditions (total pages / total count / has-more flag / short page / empty cursor).
+- **Flexible request building**: GET/POST/PUT, URL path variables, query-parameter templates, JSON body templates.
+- **JSONPath content extraction** (`$.data.list` etc.) from envelope-style API responses.
+- **Reuses upstream capabilities**: TLS/mTLS, Basic/OIDC authentication, retry strategies (fixed-delay / exponential-delay), HTTP proxy, status-code classification, HTTP logging.
+
+Full documentation (Chinese): [docs/http-scan-connector-user-guide.md](docs/http-scan-connector-user-guide.md) · Design notes: [docs/design/http-scan-connector-design.md](docs/design/http-scan-connector-design.md). The English option reference is in the [HTTP Scan Source](#http-scan-source) section below.
 
 ## Updating the connector
 In case of updating http-connector please see [Breaking changes](#breaking-changes) section.
@@ -18,9 +52,7 @@ In case of updating http-connector please see [Breaking changes](#breaking-chang
 ## Prerequisites
 * Java 11
 * Maven 3
-* Flink 1.18+. Recommended Flink 1.20.* 
-
-
+* Flink 1.17+. The `http-scan` connector is developed and tested against Flink 1.17.x / 1.18.x; the upstream `rest-lookup` / `http-sink` connectors follow upstream compatibility (Flink 1.18+, CI matrix up to 1.20).
 
 ## Runtime dependencies
 This connector has few Flink's runtime dependencies, that are expected to be provided.
@@ -30,11 +62,12 @@ This connector has few Flink's runtime dependencies, that are expected to be pro
 
 ## Installation
 
-In order to use the `flink-http-connector` the following dependencies are required for both projects using a build automation tool (such as Maven or SBT) and SQL Client with SQL JAR bundles. For build automation tool reference, look into Maven Central: [https://mvnrepository.com/artifact/com.getindata/flink-http-connector](https://mvnrepository.com/artifact/com.getindata/flink-http-connector).
+Download the connector JAR from this repository's [Releases](https://github.com/tuxin-labs/flink-http-connector/releases) page:
 
-## Documentation
+- **Flink SQL Client**: `./bin/sql-client.sh -j flink-http-connector-<version>.jar`
+- **Flink cluster**: copy the JAR into `$FLINK_HOME/lib/` and restart the cluster.
 
-You can read the official JavaDoc documentation of the latest release at [https://javadoc.io/doc/com.getindata/flink-http-connector](https://javadoc.io/doc/com.getindata/flink-http-connector).
+Or build it from source (see [Build and deployment](#build-and-deployment)).
 
 ## Usage
 
@@ -269,6 +302,8 @@ Please be informed that the mechanism will be enhanced in the future. See [HTTP-
 ### HTTP Scan Source
 The `http-scan` connector allows scanning an HTTP/REST API as a **bounded source** directly in Flink SQL — unlike `rest-lookup`, it does not require a driving table and supports pagination. It is built on Flink's FLIP-27 `Source` API (`Boundedness.BOUNDED`).
 
+> 📖 **Full documentation (Chinese)**: [docs/http-scan-connector-user-guide.md](docs/http-scan-connector-user-guide.md) — covers all options, pagination stop strategies, auth, proxy, retries, and worked examples.
+
 ```roomsql
 CREATE TABLE http_orders (
   id BIGINT,
@@ -289,26 +324,28 @@ INSERT INTO my_sink SELECT * FROM http_orders;
 
 #### Usage scenarios
 - **No pagination** (pull all data in one request): omit `pagination.*` options. Ensure the API returns a top-level array/object, or set `content-field` to a JSONPath that extracts the record array.
-- **Page-number pagination**: set `pagination.type = page-number` and use the `${page}` placeholder in `url`, `query-params`, or `body`. Stops when any of these conditions is met (in priority order): `pagination.total-pages` reached, `pagination.total-count-jsonpath` total satisfied, `pagination.has-more-jsonpath` is `false`, or a page returns fewer rows than `pagination.batch-size`.
-- **Cursor pagination**: set `pagination.type = cursor` and use the `${cursor}` placeholder. The next cursor is extracted from each response via `pagination.cursor-response-jsonpath`; pagination stops when the cursor is empty/null.
+- **Page-number pagination**: set `pagination.type = page-number` and use the `${page}` placeholder in `url`, `query-params`, or `body`. Stops when any of these conditions is met (in priority order): the `pagination.max-requests` safety cap reached, `pagination.total-pages` reached, `pagination.total-count-jsonpath` total satisfied, `pagination.has-more-jsonpath` is `false`, or a page returns fewer rows than `pagination.batch-size`.
+- **Cursor pagination**: set `pagination.type = cursor` and use the `${cursor}` placeholder. The next cursor is extracted from each response via `pagination.cursor-response-jsonpath`; pagination stops when the cursor is empty/null. The `pagination.max-requests` cap (default 10000) guarantees termination even if an API keeps returning non-empty cursors.
 
 #### Parameter passing
-Parameters can be passed via **URL query params** (`gid.connector.http.scan.query-params`, format `k1=v1&k2=v2`), **URL path variables** (`url` contains `{name}` resolved from `gid.connector.http.scan.url-vars`, format `key1:v1,key2:v2`), and **POST/PUT body templates** (`gid.connector.http.scan.body`, supports `${page}`/`${cursor}` placeholders).
+Parameters can be passed via **URL query params** (`gid.connector.http.scan.query-params`, format `k1=v1&k2=v2`), **URL path variables** (`url` contains `{name}` resolved from `gid.connector.http.scan.url-vars`, format `key1:v1,key2:v2`), **pagination placeholders** in the URL itself (`url` may contain `${page}`/`${cursor}`), and **POST/PUT body templates** (`gid.connector.http.scan.body`, supports `${page}`/`${cursor}` placeholders).
 
 #### Content extraction
 `gid.connector.http.scan.content-field` is a JSONPath (e.g. `$.data.*`) that extracts the record array or object from the response before delegating single-record deserialization to Flink's `format` (e.g. `json`). If omitted, the response top level must itself be an array or object.
 
 #### Reused capabilities
-The connector reuses the project's existing infrastructure: TLS/mTLS, Basic/OIDC authentication, retry strategies (`fixed-delay`/`exponential-delay` via resilience4j), HTTP proxy, status-code classification (`success-codes`/`retry-codes`/`ignored-response-codes`), and HTTP request/response logging (`gid.connector.http.logging.level`). See the option table below.
+The connector reuses the project's existing infrastructure: TLS/mTLS, Basic/OIDC authentication, retry strategies (`fixed-delay`/`exponential-delay` via resilience4j), HTTP proxy (with authentication), request timeouts (`gid.connector.http.scan.request.timeout`), HTTP version selection, status-code classification (`success-codes`/`retry-codes`/`ignored-response-codes`), and HTTP request/response logging (`gid.connector.http.logging.level`). See the Chinese guide for the full option table.
 
 #### Limitations (v1)
-- **Single parallelism**: one Source task scans pages serially.
-- **No checkpoint restore**: a failed job restarts from the first page (no cursor/page resume).
+- **Single split**: the scan runs on one Source task serially. Setting parallelism > 1 does not duplicate data (extra subtasks exit immediately) but does not add throughput either — keep it at 1.
+- **No checkpoint resume**: a failed (or checkpoint-restored) job restarts the scan from the first page.
 - **No `continue-on-error`**: unclassified HTTP errors fail the job.
 - **No metadata columns** (planned for a follow-up).
 - **Runtime compatibility**: Flink 1.17.x and 1.18.x (Java 11).
 
 ### HTTP Sink
+`HttpSink` supports both the Streaming API (using [HttpSink](src/main/java/com/getindata/connectors/http/internal/sink/HttpSink.java) built via [HttpSinkBuilder](src/main/java/com/getindata/connectors/http/internal/sink/HttpSinkBuilder.java)) and the Table API (via [HttpDynamicTableSinkFactory](src/main/java/com/getindata/connectors/http/internal/table/HttpDynamicTableSinkFactory.java)).
+
 The following example shows the minimum Table API example to create a [HttpDynamicSink](src/main/java/com/getindata/connectors/http/internal/table/HttpDynamicSink.java) that writes JSON values to an HTTP endpoint using POST method, assuming Flink has JAR of [JSON serializer](https://nightlies.apache.org/flink/flink-docs-release-1.15/docs/connectors/table/formats/json/) installed:
 
 ```roomsql
@@ -766,8 +803,8 @@ By default, flink caches the empty query result for the primary key. You can tog
 ## Build and deployment
 To build the project locally you need to have `maven 3` and Java 11+. </br>
 
-Project build command: `mvn package`. </br>
-Detailed test report can be found under `target/site/jacoco/index.xml`.
+Project build command: `mvn verify` (compiles, runs the full test suite with checkstyle and the JaCoCo coverage gate). </br>
+Detailed coverage report can be found under `target/site/jacoco/index.xml`.
 
 ## Demo application
 **Note**: This demo works only for Flink-1.15x.
@@ -851,6 +888,11 @@ The mapping from Http Json Response to SQL table schema is done via Flink's Json
   - Added dependency io.github.resilience4j:resilience4j-retry
 
 ## TODO
+
+### HTTP Scan Source
+- Checkpoint-based resume (cursor/page position) instead of restarting from the first page.
+- `continue-on-error` support and metadata columns (http status code, headers).
+- Parallel scans (split by page ranges / cursor windows) with per-subtask page assignment.
 
 ### HTTP TableLookup Source
 - Check other `//TODO`'s.

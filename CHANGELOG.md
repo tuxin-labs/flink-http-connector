@@ -1,13 +1,19 @@
 # Changelog
 
-## [Unreleased]
+## [0.27.0] - Unreleased
 ### Added
 - New connector `http-scan`: scan HTTP API as a bounded Flink SQL source (FLIP-27).
   Supports no-pagination, page-number pagination, and cursor pagination; JSONPath
-  content extraction; GET/POST/PUT; URL path variables, query params, body templates.
-  Reuses TLS/mTLS, Basic/OIDC auth, retry, proxy, HTTP logging from existing modules.
-  Runtime compatible with Flink 1.17.x and 1.18.x. v1 limitations: single parallelism,
-  no checkpoint restore, no `continue-on-error`, no metadata columns.
+  content extraction; GET/POST/PUT; URL path variables, query params, body templates,
+  and `${page}`/`${cursor}` placeholders in `url`, `query-params` and `body`.
+  Reuses TLS/mTLS, Basic/OIDC auth, retry strategies, proxy (with authentication),
+  request timeout, HTTP version selection, and HTTP logging from existing modules.
+  New safety option `gid.connector.http.scan.pagination.max-requests` (default 10000)
+  guarantees scan termination even when no stop condition is configured or an API keeps
+  returning non-empty cursors. Parallelism > 1 no longer duplicates data (extra subtasks
+  exit cleanly); checkpoint failover restarts the scan from the first page instead of
+  failing. Runtime compatible with Flink 1.17.x and 1.18.x. v1 limitations: single split,
+  no checkpoint resume, no `continue-on-error`, no metadata columns.
 
 ### Fixed
 - Fixed http sink NEP issue when flink job restore from checkpoint.

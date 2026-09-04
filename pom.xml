@@ -23,12 +23,12 @@ under the License.
 
   <groupId>com.getindata</groupId>
   <artifactId>flink-http-connector</artifactId>
-  <version>0.26.0-SNAPSHOT</version>
+  <version>0.27.0-SNAPSHOT</version>
   <packaging>jar</packaging>
 
   <name>flink-http-connector</name>
-  <description>The HTTP TableLookup connector that allows for pulling data from external system via HTTP GET method and HTTP Sink that allows for sending data to external system via HTTP requests. The goal for HTTP TableLookup connector was to use it in Flink SQL statement as a standard table that can be later joined with other stream using pure SQL Flink.</description>
-  <url>https://github.com/getindata/flink-http-connector</url>
+  <description>The HTTP connector for Apache Flink: a Lookup Source (dimension-table join), a bounded Scan Source (read HTTP APIs directly in Flink SQL, with pagination), and an HTTP Sink.</description>
+  <url>https://github.com/tuxin-labs/flink-http-connector</url>
 
   <licenses>
     <license>
@@ -47,9 +47,9 @@ under the License.
   </developers>
 
   <scm>
-    <connection>scm:git:git://github.com/getindata/flink-http-connector</connection>
-    <developerConnection>scm:git:ssh://github.com/getindata/flink-http-connector</developerConnection>
-    <url>https://github.com/getindata/flink-http-connector/tree/main</url>
+    <connection>scm:git:git://github.com/tuxin-labs/flink-http-connector</connection>
+    <developerConnection>scm:git:ssh://github.com/tuxin-labs/flink-http-connector</developerConnection>
+    <url>https://github.com/tuxin-labs/flink-http-connector/tree/main</url>
   </scm>
 
   <properties>
