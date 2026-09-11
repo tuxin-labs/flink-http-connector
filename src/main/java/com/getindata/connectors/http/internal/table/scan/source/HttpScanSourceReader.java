@@ -35,8 +35,8 @@ import com.getindata.connectors.http.internal.table.scan.response.JsonPathExtrac
  *
  * <p>只有被分配到 split 的 reader 才执行扫描；并行度 &gt; 1 时多余的 reader
  * 会收到 NoMoreSplits 并直接结束（不扫描、不重复产出数据）。
- * 每次 {@link #pollNext} 执行一次分页请求：构造请求 -> 发送（含重试）-> 剥壳 ->
- * 逐条反序列化 -> collect -> 推进分页状态。分页结束返回 {@link InputStatus#END_OF_INPUT}。
+ * 每次 {@link #pollNext} 执行一次分页请求：构造请求、发送（含重试）、剥壳、
+ * 逐条反序列化、collect、推进分页状态。分页结束返回 {@link InputStatus#END_OF_INPUT}。
  * ignored-response-codes 命中时跳过内容但仍推进分页；未分类错误码由
  * {@link HttpClientWithRetry} 抛异常导致作业失败。
  */

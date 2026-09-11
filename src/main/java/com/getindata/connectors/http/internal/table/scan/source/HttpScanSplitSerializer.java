@@ -15,7 +15,7 @@ import com.getindata.connectors.http.internal.table.scan.HttpScanConfig;
 /**
  * {@link HttpScanSplit} 的最小序列化器。
  *
- * <p>v1 不支持 checkpoint 断点续传：仅序列化 {@link HttpScanConfig#getProperties()}，
+ * <p>v1 不支持 checkpoint 断点续传：仅序列化 HttpScanConfig 的 properties 字段，
  * 反序列化时 url/method 等不在 properties 中的字段无法恢复（正常执行路径不依赖此恢复）。
  * 该实现仅为满足 FLIP-27 API 要求。
  */
