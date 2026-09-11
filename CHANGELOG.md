@@ -1,6 +1,6 @@
 # Changelog
 
-## [0.27.0] - Unreleased
+## [0.27.0] - 2026-09-11
 ### Added
 - New connector `http-scan`: scan HTTP API as a bounded Flink SQL source (FLIP-27).
   Supports no-pagination, page-number pagination, and cursor pagination; JSONPath
