@@ -101,7 +101,7 @@ public class JavaNetHttpClientFactory {
      * @param properties properties used to build {@link SSLContext}
      * @return new {@link SSLContext} instance.
      */
-    private static SSLContext getSslContext(Properties properties) {
+    public static SSLContext getSslContext(Properties properties) {
         String keyStorePath =
                 properties.getProperty(HttpConnectorConfigConstants.KEY_STORE_PATH, "");
 

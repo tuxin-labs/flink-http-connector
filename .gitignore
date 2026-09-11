@@ -17,3 +17,6 @@ bin
 /flink-http-connector.iml
 /dependency-reduced-pom.xml
 /.java-version
+
+# local maven settings (machine-specific mirror config, not part of the project)
+/.mvn/local-settings.xml
