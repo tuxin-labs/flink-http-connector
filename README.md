@@ -44,6 +44,12 @@ Highlights:
 - **JSONPath content extraction** (`$.data.list` etc.) from envelope-style API responses.
 - **Reuses upstream capabilities**: TLS/mTLS, Basic/OIDC authentication, retry strategies (fixed-delay / exponential-delay), HTTP proxy, status-code classification, HTTP logging.
 
+Demo — creating an `http-scan` table and querying a real HTTP API in Flink SQL Client:
+
+![Create an http-scan table in Flink SQL Client](docs/http-scan-sql-client-ddl.png)
+
+![Query results in Flink SQL Client](docs/http-scan-sql-client-result.png)
+
 Full documentation (Chinese): [docs/http-scan-connector-user-guide.md](docs/http-scan-connector-user-guide.md) · Design notes: [docs/design/http-scan-connector-design.md](docs/design/http-scan-connector-design.md). The English option reference is in the [HTTP Scan Source](#http-scan-source) section below.
 
 ## Updating the connector
